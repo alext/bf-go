@@ -11,7 +11,8 @@ const cellCount = 30000
 
 type instruction struct {
 	opCode byte
-	op     func()
+	op     func(int)
+	arg    int
 }
 
 type machine struct {
@@ -23,23 +24,22 @@ type machine struct {
 	output       io.Writer
 }
 
-func (m *machine) incData()    { m.memory[m.dp] += 1 }
-func (m *machine) decData()    { m.memory[m.dp] -= 1 }
-func (m *machine) incDataPtr() { m.dp += 1 }
-func (m *machine) decDataPtr() { m.dp -= 1 }
-func (m *machine) readInput() {
+func (m *machine) moveDataPtr(arg int) { m.dp += uint(arg) }
+func (m *machine) modifyData(arg int)  { m.memory[m.dp] += byte(arg) }
+
+func (m *machine) readInput(_ int) {
 	_, err := m.input.Read(m.memory[m.dp : m.dp+1])
 	if err != nil {
 		log.Fatalln("Error reading", err)
 	}
 }
-func (m *machine) writeOutput() {
+func (m *machine) writeOutput(_ int) {
 	_, err := m.output.Write(m.memory[m.dp : m.dp+1])
 	if err != nil {
 		log.Fatalln("Error writing", err)
 	}
 }
-func (m *machine) loop() {
+func (m *machine) loop(_ int) {
 	if m.memory[m.dp] == 0 {
 		depth := 1
 		for depth != 0 {
@@ -54,7 +54,7 @@ func (m *machine) loop() {
 	}
 }
 
-func (m *machine) endLoop() {
+func (m *machine) endLoop(_ int) {
 	if m.memory[m.dp] != 0 {
 		depth := 1
 		for depth != 0 {
@@ -76,13 +76,17 @@ func (m *machine) loadProgram(prog io.Reader) (err error) {
 		i := instruction{opCode: scanner.Text()[0]}
 		switch i.opCode {
 		case '>':
-			i.op = m.incDataPtr
+			i.op = m.moveDataPtr
+			i.arg = 1
 		case '<':
-			i.op = m.decDataPtr
+			i.op = m.moveDataPtr
+			i.arg = -1
 		case '+':
-			i.op = m.incData
+			i.op = m.modifyData
+			i.arg = 1
 		case '-':
-			i.op = m.decData
+			i.op = m.modifyData
+			i.arg = -1
 		case '.':
 			i.op = m.writeOutput
 		case ',':
@@ -101,7 +105,8 @@ func (m *machine) loadProgram(prog io.Reader) (err error) {
 
 func (m *machine) run() {
 	for int(m.ip) < len(m.instructions) {
-		m.instructions[m.ip].op()
+		i := m.instructions[m.ip]
+		i.op(i.arg)
 		m.ip++
 	}
 }
