@@ -18,7 +18,7 @@ type instruction struct {
 type machine struct {
 	memory       [cellCount]byte
 	dp           uint
-	instructions []instruction
+	instructions []*instruction
 	ip           uint
 	input        io.Reader
 	output       io.Writer
@@ -72,19 +72,38 @@ func (m *machine) endLoop(_ int) {
 func (m *machine) loadProgram(prog io.Reader) (err error) {
 	scanner := bufio.NewScanner(prog)
 	scanner.Split(bufio.ScanBytes)
+	previous := &instruction{opCode: 0}
 	for scanner.Scan() {
-		i := instruction{opCode: scanner.Text()[0]}
+		i := &instruction{opCode: scanner.Text()[0]}
 		switch i.opCode {
 		case '>':
+			if previous.opCode == '>' {
+				previous.arg += 1
+				continue
+			}
 			i.op = m.moveDataPtr
 			i.arg = 1
 		case '<':
+			if previous.opCode == '>' {
+				previous.arg -= 1
+				continue
+			}
+			i.opCode = '>'
 			i.op = m.moveDataPtr
 			i.arg = -1
 		case '+':
+			if previous.opCode == '+' {
+				previous.arg += 1
+				continue
+			}
 			i.op = m.modifyData
 			i.arg = 1
 		case '-':
+			if previous.opCode == '+' {
+				previous.arg -= 1
+				continue
+			}
+			i.opCode = '+'
 			i.op = m.modifyData
 			i.arg = -1
 		case '.':
@@ -99,6 +118,7 @@ func (m *machine) loadProgram(prog io.Reader) (err error) {
 			continue // All other characters ignored
 		}
 		m.instructions = append(m.instructions, i)
+		previous = i
 	}
 	return scanner.Err()
 }
