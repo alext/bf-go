@@ -39,33 +39,15 @@ func (m *machine) writeOutput(_ int) {
 		log.Fatalln("Error writing", err)
 	}
 }
-func (m *machine) loop(_ int) {
+
+func (m *machine) loop(arg int) {
 	if m.memory[m.dp] == 0 {
-		depth := 1
-		for depth != 0 {
-			m.ip++
-			switch m.instructions[m.ip].opCode {
-			case '[':
-				depth++
-			case ']':
-				depth--
-			}
-		}
+		m.ip = uint(arg)
 	}
 }
-
-func (m *machine) endLoop(_ int) {
+func (m *machine) endLoop(arg int) {
 	if m.memory[m.dp] != 0 {
-		depth := 1
-		for depth != 0 {
-			m.ip--
-			switch m.instructions[m.ip].opCode {
-			case ']':
-				depth++
-			case '[':
-				depth--
-			}
-		}
+		m.ip = uint(arg)
 	}
 }
 
@@ -120,7 +102,44 @@ func (m *machine) loadProgram(prog io.Reader) (err error) {
 		m.instructions = append(m.instructions, i)
 		previous = i
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return m.populateJumpPoints()
+}
+
+func (m *machine) populateJumpPoints() error {
+	for i := 0; i < len(m.instructions); i++ {
+		inst := m.instructions[i]
+		switch inst.opCode {
+		case '[':
+			inst.arg = i
+			depth := 1
+			for depth != 0 {
+				inst.arg++
+				switch m.instructions[inst.arg].opCode {
+				case '[':
+					depth++
+				case ']':
+					depth--
+				}
+			}
+		case ']':
+			inst.arg = i
+			depth := 1
+			for depth != 0 {
+				inst.arg--
+				switch m.instructions[inst.arg].opCode {
+				case '[':
+					depth--
+				case ']':
+					depth++
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (m *machine) run() {
